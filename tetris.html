@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>俄羅斯方塊</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #game {
+      display: grid;
+      grid-template-rows: repeat(20, 30px);
+      grid-template-columns: repeat(10, 30px);
+      gap: 1px;
+      background: #222;
+      margin-top: 20px;
+    }
+
+    .cell {
+      width: 30px;
+      height: 30px;
+      background: #000;
+    }
+
+    .active {
+      background: cyan;
+    }
+
+    .fixed {
+      background: #0ff;
+    }
+
+    #controls {
+      margin-top: 20px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+
+    #info {
+      margin-top: 10px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>俄羅斯方塊</h1>
+
+  <div id="info">
+    <div>分數：<span id="score">0</span></div>
+    <div>等級：<span id="level">1</span></div>
+  </div>
+
+  <div id="game"></div>
+
+  <div id="controls">
+    <button onclick="startGame()">開始遊戲</button>
+    <button onclick="pauseGame()">暫停</button>
+    <button onclick="resumeGame()">繼續</button>
+    <button onclick="restartGame()">重新開始</button>
+  </div>
+
+  <div>
+    <strong>玩法說明：</strong>
+    <ul>
+      <li>← →：左右移動</li>
+      <li>↑：旋轉</li>
+      <li>↓：加速下落</li>
+    </ul>
+  </div>
+
+  <script>
+    const ROWS = 20;
+    const COLS = 10;
+    const game = document.getElementById("game");
+    const scoreDisplay = document.getElementById("score");
+    const levelDisplay = document.getElementById("level");
+
+    let board = [];
+    let currentPiece;
+    let interval;
+    let isPaused = false;
+    let score = 0;
+    let level = 1;
+    let dropSpeed = 1000;
+
+    const SHAPES = {
+      I: [[1,1,1,1]],
+      O: [[1,1],[1,1]],
+      T: [[0,1,0],[1,1,1]],
+      S: [[0,1,1],[1,1,0]],
+      Z: [[1,1,0],[0,1,1]],
+      J: [[1,0,0],[1,1,1]],
+      L: [[0,0,1],[1,1,1]]
+    };
+
+    function createBoard() {
+      board = [];
+      game.innerHTML = "";
+      for (let r = 0; r < ROWS; r++) {
+        const row = [];
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+          game.appendChild(cell);
+          row.push(0);
+        }
+        board.push(row);
+      }
+    }
+
+    function drawBoard() {
+      const cells = game.querySelectorAll(".cell");
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const idx = r * COLS + c;
+          cells[idx].className = "cell";
+          if (board[r][c] === 1) cells[idx].classList.add("fixed");
+          if (board[r][c] === 2) cells[idx].classList.add("active");
+        }
+      }
+    }
+
+    function spawnPiece() {
+      const types = Object.keys(SHAPES);
+      const shape = SHAPES[types[Math.floor(Math.random() * types.length)]];
+      currentPiece = {
+        shape,
+        row: 0,
+        col: 3
+      };
+      if (!canMove(0, 0, shape)) {
+        alert("遊戲結束！分數：" + score);
+        stopGame();
+      }
+    }
+
+    function canMove(offsetR, offsetC, newShape = currentPiece.shape) {
+      for (let r = 0; r < newShape.length; r++) {
+        for (let c = 0; c < newShape[0].length; c++) {
+          if (newShape[r][c]) {
+            const nr = currentPiece.row + r + offsetR;
+            const nc = currentPiece.col + c + offsetC;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || board[nr][nc] === 1) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    function placePiece(val) {
+      currentPiece.shape.forEach((row, r) => {
+        row.forEach((cell, c) => {
+          if (cell) {
+            board[currentPiece.row + r][currentPiece.col + c] = val;
+          }
+        });
+      });
+    }
+
+    function rotate(shape) {
+      return shape[0].map((_, i) => shape.map(row => row[i]).reverse());
+    }
+
+    function drop() {
+      if (isPaused) return;
+      placePiece(0);
+      if (canMove(1, 0)) {
+        currentPiece.row++;
+      } else {
+        placePiece(1);
+        clearLines();
+        spawnPiece();
+      }
+      placePiece(2);
+      drawBoard();
+    }
+
+    function clearLines() {
+      let lines = 0;
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r].every(cell => cell === 1)) {
+          board.splice(r, 1);
+          board.unshift(Array(COLS).fill(0));
+          lines++;
+          r++;
+        }
+      }
+      if (lines > 0) {
+        score += lines * 100;
+        level = Math.floor(score / 500) + 1;
+        dropSpeed = Math.max(200, 1000 - (level - 1) * 100);
+        updateInfo();
+        resetInterval();
+      }
+    }
+
+    function updateInfo() {
+      scoreDisplay.textContent = score;
+      levelDisplay.textContent = level;
+    }
+
+    function resetInterval() {
+      clearInterval(interval);
+      interval = setInterval(drop, dropSpeed);
+    }
+
+    // 控制區
+    document.addEventListener("keydown", e => {
+      if (isPaused || !currentPiece) return;
+      placePiece(0);
+      if (e.key === "ArrowLeft" && canMove(0, -1)) currentPiece.col--;
+      else if (e.key === "ArrowRight" && canMove(0, 1)) currentPiece.col++;
+      else if (e.key === "ArrowDown" && canMove(1, 0)) currentPiece.row++;
+      else if (e.key === "ArrowUp") {
+        const rotated = rotate(currentPiece.shape);
+        if (canMove(0, 0, rotated)) currentPiece.shape = rotated;
+      }
+      placePiece(2);
+      drawBoard();
+    });
+
+    function startGame() {
+      createBoard();
+      score = 0;
+      level = 1;
+      dropSpeed = 1000;
+      updateInfo();
+      spawnPiece();
+      placePiece(2);
+      drawBoard();
+      isPaused = false;
+      resetInterval();
+    }
+
+    function pauseGame() {
+      isPaused = true;
+      clearInterval(interval);
+    }
+
+    function resumeGame() {
+      if (!interval) resetInterval();
+      isPaused = false;
+    }
+
+    function restartGame() {
+      clearInterval(interval);
+      startGame();
+    }
+
+    function stopGame() {
+      clearInterval(interval);
+      interval = null;
+    }
+  </script>
+</body>
+</html>
