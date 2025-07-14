@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>俄羅斯方塊</title>
   <style>
     body {
@@ -11,21 +12,27 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      margin: 0;
+      padding: 0;
     }
 
     #game {
       display: grid;
-      grid-template-rows: repeat(20, 30px);
-      grid-template-columns: repeat(10, 30px);
+      grid-template-rows: repeat(20, 1fr);
+      grid-template-columns: repeat(10, 1fr);
       gap: 1px;
       background: #222;
-      margin-top: 20px;
+      margin-top: 10px;
+      width: 90vmin;
+      height: 180vmin;
+      max-width: 300px;
+      max-height: 600px;
     }
 
     .cell {
-      width: 30px;
-      height: 30px;
       background: #000;
+      width: 100%;
+      height: 100%;
     }
 
     .active {
@@ -37,11 +44,14 @@
     }
 
     #controls {
-      margin-top: 20px;
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
     }
 
     button {
-      margin: 5px;
       padding: 10px 20px;
       font-size: 16px;
     }
@@ -50,9 +60,85 @@
       margin-top: 10px;
     }
 
-    ul {
+    #virtual-controls {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 10px;
+      margin: 5px 0;
+    }
+
+    .vc-btn {
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+      border: none;
+      border-radius: 8px;
+      background-color: #444;
+      color: white;
+    }
+
+    @media (min-width: 768px) {
+      #virtual-controls {
+        display: none;
+      }
+    }
+
+    #leaderboard {
+      margin-top: 20px;
+      background-color: #1a1a1a;
+      padding: 15px 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #00ffff66;
+      width: 90%;
+      max-width: 320px;
+      color: #fff;
+      font-size: 16px;
+    }
+
+    #leaderboard h3 {
+      margin: 0 0 10px;
+      text-align: center;
+      color: #00ffff;
+      font-size: 20px;
+      border-bottom: 1px solid #00ffff44;
+      padding-bottom: 5px;
+    }
+
+    #highscores {
+      list-style: none;
+      padding: 0;
       margin: 0;
-      padding-left: 20px;
+    }
+
+    #highscores li {
+      padding: 6px 0;
+      border-bottom: 1px dashed #444;
+      display: flex;
+      justify-content: space-between;
+      font-family: monospace;
+    }
+
+    #highscores li:last-child {
+      border-bottom: none;
+    }
+
+    #highscores li:nth-child(1) {
+      color: gold;
+      font-weight: bold;
+    }
+
+    #highscores li:nth-child(2) {
+      color: silver;
+    }
+
+    #highscores li:nth-child(3) {
+      color: #cd7f32;
     }
   </style>
 </head>
@@ -64,22 +150,29 @@
     <div>等級：<span id="level">1</span></div>
   </div>
 
+  <div id="leaderboard">
+    <h3>🏆 排行榜（前10名）</h3>
+    <ol id="highscores"></ol>
+  </div>
+
   <div id="game"></div>
 
   <div id="controls">
-    <button onclick="startGame()">開始遊戲</button>
+    <button onclick="startGame()">開始</button>
     <button onclick="pauseGame()">暫停</button>
     <button onclick="resumeGame()">繼續</button>
-    <button onclick="restartGame()">重新開始</button>
+    <button onclick="restartGame()">重啟</button>
   </div>
 
-  <div>
-    <strong>玩法說明：</strong>
-    <ul>
-      <li>← →：左右移動</li>
-      <li>↑：旋轉</li>
-      <li>↓：加速下落</li>
-    </ul>
+  <div id="virtual-controls">
+    <div class="control-row">
+      <button class="vc-btn" onclick="handleInput('ArrowUp')">⟳</button>
+    </div>
+    <div class="control-row">
+      <button class="vc-btn" onclick="handleInput('ArrowLeft')">←</button>
+      <button class="vc-btn" onclick="handleInput('ArrowDown')">↓</button>
+      <button class="vc-btn" onclick="handleInput('ArrowRight')">→</button>
+    </div>
   </div>
 
   <script>
@@ -137,13 +230,8 @@
     function spawnPiece() {
       const types = Object.keys(SHAPES);
       const shape = SHAPES[types[Math.floor(Math.random() * types.length)]];
-      currentPiece = {
-        shape,
-        row: 0,
-        col: 3
-      };
+      currentPiece = { shape, row: 0, col: 3 };
       if (!canMove(0, 0, shape)) {
-        alert("遊戲結束！分數：" + score);
         stopGame();
       }
     }
@@ -194,79 +282,4 @@
     function clearLines() {
       let lines = 0;
       for (let r = ROWS - 1; r >= 0; r--) {
-        if (board[r].every(cell => cell === 1)) {
-          board.splice(r, 1);
-          board.unshift(Array(COLS).fill(0));
-          lines++;
-          r++;
-        }
-      }
-      if (lines > 0) {
-        score += lines * 100;
-        level = Math.floor(score / 500) + 1;
-        dropSpeed = Math.max(200, 1000 - (level - 1) * 100);
-        updateInfo();
-        resetInterval();
-      }
-    }
-
-    function updateInfo() {
-      scoreDisplay.textContent = score;
-      levelDisplay.textContent = level;
-    }
-
-    function resetInterval() {
-      clearInterval(interval);
-      interval = setInterval(drop, dropSpeed);
-    }
-
-    // 控制區
-    document.addEventListener("keydown", e => {
-      if (isPaused || !currentPiece) return;
-      placePiece(0);
-      if (e.key === "ArrowLeft" && canMove(0, -1)) currentPiece.col--;
-      else if (e.key === "ArrowRight" && canMove(0, 1)) currentPiece.col++;
-      else if (e.key === "ArrowDown" && canMove(1, 0)) currentPiece.row++;
-      else if (e.key === "ArrowUp") {
-        const rotated = rotate(currentPiece.shape);
-        if (canMove(0, 0, rotated)) currentPiece.shape = rotated;
-      }
-      placePiece(2);
-      drawBoard();
-    });
-
-    function startGame() {
-      createBoard();
-      score = 0;
-      level = 1;
-      dropSpeed = 1000;
-      updateInfo();
-      spawnPiece();
-      placePiece(2);
-      drawBoard();
-      isPaused = false;
-      resetInterval();
-    }
-
-    function pauseGame() {
-      isPaused = true;
-      clearInterval(interval);
-    }
-
-    function resumeGame() {
-      if (!interval) resetInterval();
-      isPaused = false;
-    }
-
-    function restartGame() {
-      clearInterval(interval);
-      startGame();
-    }
-
-    function stopGame() {
-      clearInterval(interval);
-      interval = null;
-    }
-  </script>
-</body>
-</html>
+        if (board[r].every(cell => cell ===
